@@ -62,11 +62,10 @@ def fileExit():
     # on exit, if unsaved changes prompts user to save, not save or cancel w/ messagebox
     global currentFilePath
     if unsavedChanges:
-        if currentFilePath == None:
-            currentFilePath = "Untitled"
+        display_name = currentFilePath if currentFilePath else "Untitled"
         unsavedChangesWarning = messagebox.askyesnocancel(
             "Unsaved Changes",
-            "Do you want to save changes to %s?" % currentFilePath)
+            "Do you want to save changes to %s?" % display_name)
         if unsavedChangesWarning:
             print("Unsaved changes has been saved") # debug
             if not saveFile():
@@ -88,9 +87,10 @@ def newFile():
     global unsavedChanges
 
     if unsavedChanges:
+        display_name = currentFilePath if currentFilePath else "Untitled"
         unsavedChangesWarning = messagebox.askyesnocancel(
             "Unsaved Changes",
-            "Do you want to save changes to %s?" % currentFilePath)
+            "Do you want to save changes to %s?" % display_name)
         if unsavedChangesWarning:
             print("Unsaved changes has been saved") # debug
             if not saveFile():
@@ -102,6 +102,9 @@ def newFile():
     unsavedChanges = False
     updateTitle()
     mainTextField.delete(1.0, END)
+    unsavedChanges = False
+    mainTextField.edit_modified(False)
+    updateTitle()
 
 def openFile():
     # opens a file starting at data folder
@@ -160,6 +163,7 @@ def saveFile():
                 unsavedChanges = False
                 saveFile.close()
                 updateTitle()
+            mainTextField.edit_modified(False)
             return True
 
         except Exception as e:
@@ -171,8 +175,6 @@ def saveFile():
 def saveAsFile():
     global currentFilePath
     global unsavedChanges
-    if currentFilePath == None:
-        currentFilePath = "Untitled"
     file = filedialog.asksaveasfile(defaultextension=".txt",
                                     filetypes=[
                                         ("Text File", "*.txt"),
@@ -187,6 +189,7 @@ def saveAsFile():
             print(f"currentFilePath: {currentFilePath}") # debug
             unsavedChanges = False
             updateTitle()
+            mainTextField.edit_modified(False)
             file.close()
             return True
 
