@@ -69,7 +69,8 @@ def fileExit():
             "Do you want to save changes to %s?" % currentFilePath)
         if unsavedChangesWarning:
             print("Unsaved changes has been saved") # debug
-            saveFile()
+            if not saveFile():
+                return
             mainWindow.destroy()
         elif unsavedChangesWarning is None:
             return
@@ -92,7 +93,8 @@ def newFile():
             "Do you want to save changes to %s?" % currentFilePath)
         if unsavedChangesWarning:
             print("Unsaved changes has been saved") # debug
-            saveFile()
+            if not saveFile():
+                return
         elif unsavedChangesWarning is None:
             return
 
@@ -104,6 +106,18 @@ def newFile():
 def openFile():
     # opens a file starting at data folder
     global currentFilePath
+    global unsavedChanges
+
+    if unsavedChanges:
+        unsavedChangesWarning = messagebox.askyesnocancel(
+            "Unsaved Changes",
+            "Do you want to save changes to %s?" % (currentFilePath if currentFilePath else "Untitled"))
+        if unsavedChangesWarning:
+            if not saveFile():
+                return
+        elif unsavedChangesWarning is None:
+            return
+
     # sets the context window to default to .txt or an option for all files
     filepath = filedialog.askopenfilename(
         title="Open file...",
@@ -121,6 +135,7 @@ def openFile():
                 mainTextField.delete(1.0, END)
                 mainTextField.insert(1.0, openFileData)
                 mainTextField.edit_modified(False)
+                unsavedChanges = False
                 openFile.close()
                 updateTitle()
 
@@ -145,11 +160,13 @@ def saveFile():
                 unsavedChanges = False
                 saveFile.close()
                 updateTitle()
+            return True
 
         except Exception as e:
             print(f"Save file error: {e}")
+            return False
     else:
-        saveAsFile()
+        return saveAsFile()
 
 def saveAsFile():
     global currentFilePath
@@ -171,11 +188,15 @@ def saveAsFile():
             unsavedChanges = False
             updateTitle()
             file.close()
+            return True
 
         except FileNotFoundError:
             print("File not found, it might have been moved or deleted.")
+            return False
         except Exception as e:
             print(f"An unexpected error occurred: {e}")
+            return False
+    return False
 
 def undoEdit():
     try:
