@@ -6,6 +6,9 @@ import webbrowser
 import json
 import os
 
+# tags
+SEARCH_HIGHLIGHT_TAG = "search_highlight"
+
 # global constants
 IS_BUILD = bool(False)                  # declare true while editing code, declare false when not changing code
 IS_DEBUG = bool(False)                  # need to add debug features for this one
@@ -49,6 +52,7 @@ def on_edit(event=None):
     if mainTextField.edit_modified():
         unsavedChanges = True
         updateTitle()
+        update_cursor_position()
         # print("Text has been edited") # debug
         mainTextField.edit_modified(False)
 
@@ -105,6 +109,7 @@ def newFile():
     unsavedChanges = False
     mainTextField.edit_modified(False)
     updateTitle()
+    update_cursor_position()
 
 def openFile():
     # opens a file starting at data folder
@@ -141,6 +146,7 @@ def openFile():
                 unsavedChanges = False
                 openFile.close()
                 updateTitle()
+                update_cursor_position()
 
         except FileNotFoundError:
             print("File not found, it might have been moved or deleted.")
@@ -190,6 +196,7 @@ def saveAsFile():
             unsavedChanges = False
             updateTitle()
             mainTextField.edit_modified(False)
+            update_cursor_position()
             file.close()
             return True
 
@@ -339,6 +346,121 @@ def toggleWordWrap():
     else:
         mainTextField.config(wrap="none")
 
+def findAndReplace():
+    def highlight_all():
+        mainTextField.tag_remove(SEARCH_HIGHLIGHT_TAG, "1.0", END)
+        query = find_entry.get()
+        if not query:
+            matches_label.config(text="")
+            return
+
+        start_pos = "1.0"
+        matches = 0
+        first_match = None
+        nocase = bool(ignore_case_var.get())
+        while True:
+            start_pos = mainTextField.search(query, start_pos, nocase=nocase, stopindex=END)
+            if not start_pos:
+                break
+            end_pos = f"{start_pos}+{len(query)}c"
+            mainTextField.tag_add(SEARCH_HIGHLIGHT_TAG, start_pos, end_pos)
+            if not first_match:
+                first_match = start_pos
+            start_pos = end_pos
+            matches += 1
+
+        if matches:
+            matches_label.config(text=f"{matches} match(es)")
+            mainTextField.see(first_match)
+        else:
+            matches_label.config(text="No matches found")
+
+    def replace_next():
+        global unsavedChanges
+        query = find_entry.get()
+        replacement = replace_entry.get()
+        if not query:
+            return
+
+        start_pos = mainTextField.search(query, mainTextField.index(INSERT), nocase=bool(ignore_case_var.get()), stopindex=END)
+        if not start_pos:
+            matches_label.config(text="No further matches")
+            return
+
+        end_pos = f"{start_pos}+{len(query)}c"
+        mainTextField.delete(start_pos, end_pos)
+        mainTextField.insert(start_pos, replacement)
+        mainTextField.mark_set(INSERT, f"{start_pos}+{len(replacement)}c")
+        highlight_all()
+        update_cursor_position()
+        unsavedChanges = True
+        updateTitle()
+
+    def replace_all():
+        query = find_entry.get()
+        replacement = replace_entry.get()
+        if not query:
+            return
+
+        text = mainTextField.get("1.0", END)
+        nocase = bool(ignore_case_var.get())
+        comparison_text = text.lower() if nocase else text
+        target = query.lower() if nocase else query
+        occurrences = comparison_text.count(target)
+        if not occurrences:
+            matches_label.config(text="No matches found")
+            return
+
+        if nocase:
+            start = 0
+            result = ""
+            while True:
+                idx = comparison_text.find(target, start)
+                if idx == -1:
+                    result += text[start:]
+                    break
+                result += text[start:idx] + replacement
+                start = idx + len(query)
+            mainTextField.delete("1.0", END)
+            mainTextField.insert("1.0", result)
+        else:
+            mainTextField.delete("1.0", END)
+            mainTextField.insert("1.0", text.replace(query, replacement))
+
+        mainTextField.edit_modified(True)
+        on_edit()
+        highlight_all()
+        matches_label.config(text=f"Replaced {occurrences} occurrence(s)")
+
+    findWindow = Toplevel(mainWindow)
+    findWindow.title("Find / Replace")
+    findWindow.resizable(FALSE, FALSE)
+
+    Label(findWindow, text="Find:").grid(row=0, column=0, padx=5, pady=5, sticky="e")
+    find_entry = Entry(findWindow, width=30)
+    find_entry.grid(row=0, column=1, padx=5, pady=5, sticky="w")
+
+    Label(findWindow, text="Replace:").grid(row=1, column=0, padx=5, pady=5, sticky="e")
+    replace_entry = Entry(findWindow, width=30)
+    replace_entry.grid(row=1, column=1, padx=5, pady=5, sticky="w")
+
+    ignore_case_var = BooleanVar(value=True)
+    Checkbutton(findWindow, text="Ignore case", variable=ignore_case_var, command=highlight_all).grid(row=2, column=1, sticky="w", padx=5, pady=2)
+
+    button_frame = Frame(findWindow)
+    button_frame.grid(row=3, column=0, columnspan=2, pady=5)
+
+    Button(button_frame, text="Find All", command=highlight_all, width=10).grid(row=0, column=0, padx=5)
+    Button(button_frame, text="Replace", command=replace_next, width=10).grid(row=0, column=1, padx=5)
+    Button(button_frame, text="Replace All", command=replace_all, width=10).grid(row=0, column=2, padx=5)
+
+    matches_label = Label(findWindow, text="", anchor="w")
+    matches_label.grid(row=4, column=0, columnspan=2, sticky="w", padx=5, pady=2)
+
+    find_entry.focus_set()
+    findWindow.transient(mainWindow)
+    findWindow.grab_set()
+
 def helpView():
     webbrowser.open(helpurl)
 
@@ -413,6 +535,8 @@ rcMenu.add_separator()
 rcMenu.add_command(label="Cut", command=cutEdit)
 rcMenu.add_command(label="Copy", command=copyEdit)
 rcMenu.add_command(label="Paste", command=pasteEdit)
+rcMenu.add_separator()
+rcMenu.add_command(label="Select All", command=lambda: mainTextField.tag_add(SEL, "1.0", END))
 rcMenu.bind("<Button-3>", rcPopup)
 
 # menubar generation
@@ -437,6 +561,9 @@ editMenu.add_separator()
 editMenu.add_command(label="Cut", accelerator="Ctrl+X", command=cutEdit)
 editMenu.add_command(label="Copy", accelerator="Ctrl+C", command=copyEdit)
 editMenu.add_command(label="Paste", accelerator="Ctrl+V", command=pasteEdit)
+editMenu.add_separator()
+editMenu.add_command(label="Find / Replace", accelerator="Ctrl+F", command=findAndReplace)
+editMenu.add_command(label="Select All", accelerator="Ctrl+A", command=lambda: mainTextField.tag_add(SEL, "1.0", END))
 
 # format context menu in menu bar
 formatMenu = Menu(menubar,tearoff=False)
@@ -465,7 +592,10 @@ mainTextField = Text(mainWindow, font=currentFont, wrap="word", undo=True, yscro
 mainTextField.pack(side="top", expand=True, fill="both")
 mainTextField.bind("<<Modified>>", on_edit)
 mainTextField.bind("<Control-z>", lambda e: undoEdit())
+mainTextField.bind("<Control-f>", lambda e: (findAndReplace(), "break"))
+mainTextField.bind("<Control-a>", lambda e: (mainTextField.tag_add(SEL, "1.0", END), "break"))
 mainTextField.bind("<Button-3>", rcPopup)
+mainTextField.tag_config(SEARCH_HIGHLIGHT_TAG, background="yellow")
 mainWindow.protocol("WM_DELETE_WINDOW", fileExit)
 
 # Status bar frame
@@ -476,18 +606,27 @@ status_frame.pack(side="bottom", fill="x")
 cursor_label = Label(status_frame, text="Ln 1, Col 1", anchor="e")
 cursor_label.pack(side="right", padx=5)
 
+document_stats_label = Label(status_frame, text="0 chars | 0 words", anchor="w")
+document_stats_label.pack(side="left", padx=5)
+
 # Function to update cursor position
 def update_cursor_position(event=None):
     try:
         index = mainTextField.index("insert")
         line, col = map(int, index.split("."))
         cursor_label.config(text=f"Ln {line}, Col {col + 1}")
+        text_content = mainTextField.get("1.0", "end-1c")
+        char_count = len(text_content)
+        word_count = len(text_content.split()) if text_content.strip() else 0
+        document_stats_label.config(text=f"{char_count} chars | {word_count} words")
     except:
         cursor_label.config(text="Ln -, Col -")
+        document_stats_label.config(text="0 chars | 0 words")
 
 # Bind typing and mouse release to update function
 mainTextField.bind("<KeyRelease>", update_cursor_position)
 mainTextField.bind("<ButtonRelease>", update_cursor_position)
+mainTextField.bind("<MouseWheel>", update_cursor_position)
 
 
 # window loop
