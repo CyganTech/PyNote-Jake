@@ -42,9 +42,9 @@ def updateVersion(file_path="np_settings.json"):
 
 def updateTitle():
     # creates an asterisk next to the filename in the title bar if unsaved changes exist
-    base_name = currentFilePath if currentFilePath else "Untitled"
+    base_name = os.path.basename(currentFilePath) if currentFilePath else "Untitled"
     dirty_marker = "*" if unsavedChanges else ""
-    mainWindow.title(f"{dirty_marker}{os.path.basename(base_name)} - JON - Just another notepad")
+    mainWindow.title(f"{dirty_marker}{base_name} - JON - Just another notepad")
 
 def on_edit(event=None):
     # checks to see if text has been edited to change unsavedChange flag to true
@@ -62,69 +62,46 @@ def rcPopup(event):
     finally:
         rcMenu.grab_release()
 
-def fileExit():
-    # on exit, if unsaved changes prompts user to save, not save or cancel w/ messagebox
-    global currentFilePath
-    if unsavedChanges:
-        display_name = currentFilePath if currentFilePath else "Untitled"
-        unsavedChangesWarning = messagebox.askyesnocancel(
-            "Unsaved Changes",
-            "Do you want to save changes to %s?" % display_name)
-        if unsavedChangesWarning:
-            print("Unsaved changes has been saved") # debug
-            if not saveFile():
-                return
-            mainWindow.destroy()
-        elif unsavedChangesWarning is None:
-            return
-        else:
-            mainWindow.destroy()
-    else:
-        mainWindow.destroy()
-
-def newFile():
-    # -=Need to fix=-
-    #-----------------
-    # :Text deletes if you cancel the "save as" function instead of remaining
-
-    global currentFilePath
+def prompt_unsaved_changes():
     global unsavedChanges
+    if not unsavedChanges:
+        return True
 
-    if unsavedChanges:
-        display_name = currentFilePath if currentFilePath else "Untitled"
-        unsavedChangesWarning = messagebox.askyesnocancel(
-            "Unsaved Changes",
-            "Do you want to save changes to %s?" % display_name)
-        if unsavedChangesWarning:
-            print("Unsaved changes has been saved") # debug
-            if not saveFile():
-                return
-        elif unsavedChangesWarning is None:
-            return
+    display_name = currentFilePath if currentFilePath else "Untitled"
+    unsavedChangesWarning = messagebox.askyesnocancel(
+        "Unsaved Changes",
+        f"Do you want to save changes to {display_name}?")
+    if unsavedChangesWarning:
+        return saveFile()
+    if unsavedChangesWarning is None:
+        return False
+    return True
 
-    currentFilePath = None
-    unsavedChanges = False
-    updateTitle()
-    mainTextField.delete(1.0, END)
+def load_content(text, path=None):
+    global currentFilePath, unsavedChanges
+    currentFilePath = path
+    mainTextField.delete("1.0", END)
+    mainTextField.insert("1.0", text)
+    mainTextField.tag_remove(SEARCH_HIGHLIGHT_TAG, "1.0", END)
     unsavedChanges = False
     mainTextField.edit_modified(False)
     updateTitle()
     update_cursor_position()
 
+def fileExit():
+    # on exit, if unsaved changes prompts user to save, not save or cancel w/ messagebox
+    if prompt_unsaved_changes():
+        mainWindow.destroy()
+
+def newFile():
+    if not prompt_unsaved_changes():
+        return
+    load_content("", None)
+
 def openFile():
     # opens a file starting at data folder
-    global currentFilePath
-    global unsavedChanges
-
-    if unsavedChanges:
-        unsavedChangesWarning = messagebox.askyesnocancel(
-            "Unsaved Changes",
-            "Do you want to save changes to %s?" % (currentFilePath if currentFilePath else "Untitled"))
-        if unsavedChangesWarning:
-            if not saveFile():
-                return
-        elif unsavedChangesWarning is None:
-            return
+    if not prompt_unsaved_changes():
+        return
 
     # sets the context window to default to .txt or an option for all files
     filepath = filedialog.askopenfilename(
@@ -136,75 +113,63 @@ def openFile():
     # global currentFilePath
     if filepath:
         try:
-            with open(filepath, "r") as openFile:
-                openFileData = openFile.read()
-                currentFilePath = filepath
-                print(f"currentFilePath: {currentFilePath}") # for debugging
-                mainTextField.delete(1.0, END)
-                mainTextField.insert(1.0, openFileData)
-                mainTextField.edit_modified(False)
-                unsavedChanges = False
-                openFile.close()
-                updateTitle()
-                update_cursor_position()
+            with open(filepath, "r", encoding="utf-8") as openFileHandler:
+                openFileData = openFileHandler.read()
+                load_content(openFileData, filepath)
 
         except FileNotFoundError:
-            print("File not found, it might have been moved or deleted.")
+            messagebox.showerror("Open Error", "File not found, it might have been moved or deleted.")
 
         except Exception as e:
-            print(f"An unexpected error occurred: {e}")
-
-    else:
-        print("No file selected")
+            messagebox.showerror("Open Error", f"An unexpected error occurred:\n{e}")
 
 def saveFile():
-    global currentFilePath
-    global unsavedChanges
-    print(f"currentFilePath: {currentFilePath}") # debug
+    global currentFilePath, unsavedChanges
     if currentFilePath:
         try:
-            content = mainTextField.get(1.0, END)
-            with open(currentFilePath, "w") as saveFile:
-                saveFile.write(content)
+            content = mainTextField.get("1.0", "end-1c")
+            with open(currentFilePath, "w", encoding="utf-8") as saveFileHandler:
+                saveFileHandler.write(content)
                 unsavedChanges = False
-                saveFile.close()
                 updateTitle()
             mainTextField.edit_modified(False)
             return True
 
+        except OSError as e:
+            messagebox.showerror("Save Error", f"Could not save the file:\n{e}")
+            return False
         except Exception as e:
-            print(f"Save file error: {e}")
+            messagebox.showerror("Save Error", f"Save file error:\n{e}")
             return False
     else:
         return saveAsFile()
 
 def saveAsFile():
-    global currentFilePath
-    global unsavedChanges
-    file = filedialog.asksaveasfile(defaultextension=".txt",
-                                    filetypes=[
-                                        ("Text File", "*.txt"),
-                                        ("Python File", "*.py"),
-                                        ("All Files","*.*")
-                                    ])
-    if file:
+    global currentFilePath, unsavedChanges
+    filepath = filedialog.asksaveasfilename(
+        defaultextension=".txt",
+        filetypes=[
+            ("Text File", "*.txt"),
+            ("Python File", "*.py"),
+            ("All Files","*.*")
+        ])
+    if filepath:
         try:
-            fileText = str(mainTextField.get("1.0", END))
-            file.write(fileText)
-            currentFilePath = file.name
-            print(f"currentFilePath: {currentFilePath}") # debug
+            fileText = str(mainTextField.get("1.0", "end-1c"))
+            with open(filepath, "w", encoding="utf-8") as fileHandler:
+                fileHandler.write(fileText)
+            currentFilePath = filepath
             unsavedChanges = False
             updateTitle()
             mainTextField.edit_modified(False)
             update_cursor_position()
-            file.close()
             return True
 
         except FileNotFoundError:
-            print("File not found, it might have been moved or deleted.")
+            messagebox.showerror("Save Error", "File not found, it might have been moved or deleted.")
             return False
         except Exception as e:
-            print(f"An unexpected error occurred: {e}")
+            messagebox.showerror("Save Error", f"An unexpected error occurred:\n{e}")
             return False
     return False
 
