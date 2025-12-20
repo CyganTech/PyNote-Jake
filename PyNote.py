@@ -2,6 +2,7 @@ from tkinter import *
 from tkinter import filedialog
 from tkinter import font
 from tkinter import messagebox
+from datetime import datetime
 import json
 import os
 import sys
@@ -228,8 +229,54 @@ def pasteEdit():
     try:
         clippaste = mainWindow.clipboard_get()
         mainTextField.insert(INSERT, clippaste)
+        mainTextField.edit_modified(True)
+        on_edit()
     except TclError:
         pass
+
+def redoEdit():
+    try:
+        mainTextField.edit_redo()
+    except TclError:
+        pass
+
+def insertDateTime():
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
+    mainTextField.insert(INSERT, timestamp)
+    mainTextField.edit_modified(True)
+    on_edit()
+
+def goToLine():
+    def jump():
+        try:
+            line_number = int(line_entry.get())
+        except ValueError:
+            messagebox.showerror("Go To Line", "Please enter a valid line number.")
+            return
+
+        max_line = int(mainTextField.index("end-1c").split(".")[0])
+        if line_number < 1:
+            line_number = 1
+        elif line_number > max_line:
+            line_number = max_line
+
+        target_index = f"{line_number}.0"
+        mainTextField.mark_set(INSERT, target_index)
+        mainTextField.see(target_index)
+        update_cursor_position()
+        gotoWindow.destroy()
+
+    gotoWindow = Toplevel(mainWindow)
+    gotoWindow.title("Go To Line")
+    gotoWindow.resizable(FALSE, FALSE)
+    Label(gotoWindow, text="Line number:").grid(row=0, column=0, padx=8, pady=8)
+    line_entry = Entry(gotoWindow, width=10)
+    line_entry.grid(row=0, column=1, padx=8, pady=8)
+    Button(gotoWindow, text="Go", command=jump).grid(row=1, column=0, columnspan=2, pady=(0, 8))
+    line_entry.focus_set()
+    line_entry.bind("<Return>", lambda e: jump())
+    gotoWindow.transient(mainWindow)
+    gotoWindow.grab_set()
 
 def fontFormat():
 
@@ -521,6 +568,7 @@ def initialize_window():
     # Right Click (rc) context menu generation
     rcMenu = Menu(mainWindow, tearoff=0)
     rcMenu.add_command(label="Undo", command=undoEdit)
+    rcMenu.add_command(label="Redo", command=redoEdit)
     rcMenu.add_separator()
     rcMenu.add_command(label="Cut", command=cutEdit)
     rcMenu.add_command(label="Copy", command=copyEdit)
@@ -536,23 +584,26 @@ def initialize_window():
     # file context menu in menu bar
     fileMenu = Menu(menubar,tearoff=False)
     menubar.add_cascade(label="File", menu=fileMenu)
-    fileMenu.add_command(label="New", command=newFile)
-    fileMenu.add_command(label="Open", command=openFile)
-    fileMenu.add_command(label="Save", command=saveFile)
-    fileMenu.add_command(label="Save As...", command=saveAsFile)
+    fileMenu.add_command(label="New", accelerator="Ctrl+N", command=newFile)
+    fileMenu.add_command(label="Open", accelerator="Ctrl+O", command=openFile)
+    fileMenu.add_command(label="Save", accelerator="Ctrl+S", command=saveFile)
+    fileMenu.add_command(label="Save As...", accelerator="Ctrl+Shift+S", command=saveAsFile)
     fileMenu.add_separator()
-    fileMenu.add_command(label="Exit", command=fileExit)
+    fileMenu.add_command(label="Exit", accelerator="Ctrl+Q", command=fileExit)
 
     # edit context menu in menu bar
     editMenu = Menu(menubar,tearoff=False)
     menubar.add_cascade(label="Edit", menu=editMenu)
     editMenu.add_command(label="Undo", accelerator="Ctrl+Z", command=undoEdit)
+    editMenu.add_command(label="Redo", accelerator="Ctrl+Y", command=redoEdit)
     editMenu.add_separator()
     editMenu.add_command(label="Cut", accelerator="Ctrl+X", command=cutEdit)
     editMenu.add_command(label="Copy", accelerator="Ctrl+C", command=copyEdit)
     editMenu.add_command(label="Paste", accelerator="Ctrl+V", command=pasteEdit)
     editMenu.add_separator()
     editMenu.add_command(label="Find / Replace", accelerator="Ctrl+F", command=findAndReplace)
+    editMenu.add_command(label="Go To Line", accelerator="Ctrl+G", command=goToLine)
+    editMenu.add_command(label="Insert Date/Time", accelerator="F5", command=insertDateTime)
     editMenu.add_command(label="Select All", accelerator="Ctrl+A", command=lambda: mainTextField.tag_add(SEL, "1.0", END))
 
     # format context menu in menu bar
@@ -580,11 +631,22 @@ def initialize_window():
     mainTextField.pack(side="top", expand=True, fill="both")
     mainTextField.bind("<<Modified>>", on_edit)
     mainTextField.bind("<Control-z>", lambda e: undoEdit())
+    mainTextField.bind("<Control-y>", lambda e: redoEdit())
+    mainTextField.bind("<Control-x>", lambda e: (cutEdit(), "break"))
+    mainTextField.bind("<Control-c>", lambda e: (copyEdit(), "break"))
+    mainTextField.bind("<Control-v>", lambda e: (pasteEdit(), "break"))
     mainTextField.bind("<Control-f>", lambda e: (findAndReplace(), "break"))
+    mainTextField.bind("<Control-g>", lambda e: (goToLine(), "break"))
+    mainTextField.bind("<F5>", lambda e: (insertDateTime(), "break"))
     mainTextField.bind("<Control-a>", lambda e: (mainTextField.tag_add(SEL, "1.0", END), "break"))
     mainTextField.bind("<Button-3>", rcPopup)
     mainTextField.tag_config(SEARCH_HIGHLIGHT_TAG, background="yellow")
     mainWindow.protocol("WM_DELETE_WINDOW", fileExit)
+    mainWindow.bind("<Control-n>", lambda e: (newFile(), "break"))
+    mainWindow.bind("<Control-o>", lambda e: (openFile(), "break"))
+    mainWindow.bind("<Control-s>", lambda e: (saveFile(), "break"))
+    mainWindow.bind("<Control-Shift-S>", lambda e: (saveAsFile(), "break"))
+    mainWindow.bind("<Control-q>", lambda e: (fileExit(), "break"))
 
     # Status bar frame
     status_frame = Frame(mainWindow, relief="sunken", bd=1)

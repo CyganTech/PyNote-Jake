@@ -24,12 +24,21 @@ python PyNote.py path/to/file.txt
 - Unsaved-change prompts on exit or before opening another file
 - Word wrap toggle and font picker
 - Find and replace with case-insensitive matching
-- Undo, cut/copy/paste, and select-all shortcuts
+- Undo/redo, cut/copy/paste, and select-all shortcuts
+- Go-to-line prompt and date/time insertion
+- Keyboard shortcuts for new, open, save, and save-as workflows
 - Status bar with live line/column indicator plus character/word counts
 - Optional startup file loading via command-line argument
 
 ## Keyboard shortcuts
 - `Ctrl + Z` – Undo
+- `Ctrl + Y` – Redo
+- `Ctrl + N` – New file
+- `Ctrl + O` – Open file
+- `Ctrl + S` – Save file
+- `Ctrl + Shift + S` – Save As
+- `Ctrl + G` – Go to line
+- `F5` – Insert date/time
 - `Ctrl + X/C/V` – Cut, Copy, Paste
 - `Ctrl + F` – Find / Replace
 - `Ctrl + A` – Select All
