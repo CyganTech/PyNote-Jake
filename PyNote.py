@@ -44,7 +44,7 @@ def updateTitle():
     # creates an asterisk next to the filename in the title bar if unsaved changes exist
     base_name = currentFilePath if currentFilePath else "Untitled"
     dirty_marker = "*" if unsavedChanges else ""
-    mainWindow.title(f"{dirty_marker}{os.path.basename(base_name)} - PyNote")
+    mainWindow.title(f"{dirty_marker}{os.path.basename(base_name)} - JON - Just another notepad")
 
 def on_edit(event=None):
     # checks to see if text has been edited to change unsavedChange flag to true
@@ -482,14 +482,14 @@ def about():
     aboutWindow.geometry(f"{window_width}x{window_height}+{x}+{y}")
 
     # bulk of about window text
-    aboutPynote = """PyNote is a project notepad app coded entirely in Python utilizing TKinter to get back into programming with python. 
+    aboutPynote = """JON - Just another notepad is a project notepad app coded entirely in Python utilizing TKinter to get back into programming with python. 
     \nThank you to Bro Code and chatGPT (lol) for helping me practice my programming skills and giving me the resources and tips to help build this tool!
     \n
     \n\n Created by Jake Evans"""
 
     # add content to actual window
 
-    aboutWindowLabel = Label(aboutWindow,text=f"PyNote version {version}", font=("Arial",14,"bold"))
+    aboutWindowLabel = Label(aboutWindow,text=f"JON - Just another notepad version {version}", font=("Arial",14,"bold"))
     aboutWindowLabel.pack(side=TOP,pady=10)
     aboutWindowText = Label(aboutWindow,text=aboutPynote,font=("Arial",10),wraplength=380, justify="center")
     aboutWindowText.pack(side=TOP)
@@ -507,7 +507,7 @@ mainWindow = Tk()
 mainWindow.geometry("600x400")
 version = updateVersion()
 # mainWindow.title("PyNotes Version %s" % version) - legacy v0.3b22
-mainWindow.title("Untitled - PyNote")
+mainWindow.title("Untitled - JON - Just another notepad")
 
 #########DEFAULT VALUES FOR WINDOW################
 currentFont = font.Font(family="consolas", size=13)
@@ -576,7 +576,7 @@ helpMenu = Menu(menubar,tearoff=False)
 menubar.add_cascade(label="Help", menu=helpMenu)
 helpMenu.add_command(label="View Help", command=helpView)
 helpMenu.add_separator()
-helpMenu.add_command(label="About PyNote", command=about)
+helpMenu.add_command(label="About JON", command=about)
 
 # text window scrollbar
 xScrollbar = Scrollbar(mainWindow, orient="horizontal")
