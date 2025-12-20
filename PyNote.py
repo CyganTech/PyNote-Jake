@@ -1,29 +1,40 @@
 from tkinter import *
-from tkinter import messagebox
 from tkinter import filedialog
 from tkinter import font
-import webbrowser
+from tkinter import messagebox
 import json
 import os
+import sys
+import webbrowser
 
 # tags
 SEARCH_HIGHLIGHT_TAG = "search_highlight"
 
 # global constants
-IS_BUILD = bool(False)                  # declare true while editing code, declare false when not changing code
-IS_DEBUG = bool(False)                  # need to add debug features for this one
+APP_NAME = "JON - Just another notepad"
+DEFAULT_TITLE = "Untitled"
+DEFAULT_WINDOW_SIZE = "800x600"
+IS_BUILD = False                  # declare true while editing code, declare false when not changing code
+IS_DEBUG = False                  # need to add debug features for this one
+helpurl = "https://www.youtube.com/watch?v=My0lzMuNcHI"
+ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
+
+# runtime state
 currentFilePath = None                  # keeps track of file path for memory on open/save logic
 unsavedChanges = False                  # keeps track of any unsaved changes
-helpurl = "https://www.youtube.com/watch?v=My0lzMuNcHI"
 
 # important functions
+def resource_path(*parts):
+    return os.path.join(ROOT_DIR, *parts)
+
+
 def fileCheck(filename):
-    return os.path.exists(os.path.join(os.getcwd(),filename))
+    return os.path.exists(resource_path(filename))
 
 def updateVersion(file_path="np_settings.json"):
     # load or initialize version data
     if not os.path.exists(file_path):
-        versionData = {"major" : 1, "minor" : 0, "build" : 0}
+        versionData = {"major": 1, "minor": 0, "build": 0}
     else:
         with open(file_path, "r") as json_file:
             versionData = json.load(json_file)
@@ -42,9 +53,9 @@ def updateVersion(file_path="np_settings.json"):
 
 def updateTitle():
     # creates an asterisk next to the filename in the title bar if unsaved changes exist
-    base_name = os.path.basename(currentFilePath) if currentFilePath else "Untitled"
+    base_name = os.path.basename(currentFilePath) if currentFilePath else DEFAULT_TITLE
     dirty_marker = "*" if unsavedChanges else ""
-    mainWindow.title(f"{dirty_marker}{base_name} - JON - Just another notepad")
+    mainWindow.title(f"{dirty_marker}{base_name} - {APP_NAME}")
 
 def on_edit(event=None):
     # checks to see if text has been edited to change unsavedChange flag to true
@@ -67,7 +78,7 @@ def prompt_unsaved_changes():
     if not unsavedChanges:
         return True
 
-    display_name = currentFilePath if currentFilePath else "Untitled"
+    display_name = currentFilePath if currentFilePath else DEFAULT_TITLE
     unsavedChangesWarning = messagebox.askyesnocancel(
         "Unsaved Changes",
         f"Do you want to save changes to {display_name}?")
@@ -88,6 +99,21 @@ def load_content(text, path=None):
     updateTitle()
     update_cursor_position()
 
+
+# Function to update cursor position and document statistics
+def update_cursor_position(event=None):
+    try:
+        index = mainTextField.index("insert")
+        line, col = map(int, index.split("."))
+        cursor_label.config(text=f"Ln {line}, Col {col + 1}")
+        text_content = mainTextField.get("1.0", "end-1c")
+        char_count = len(text_content)
+        word_count = len(text_content.split()) if text_content.strip() else 0
+        document_stats_label.config(text=f"{char_count} chars | {word_count} words")
+    except Exception:
+        cursor_label.config(text="Ln -, Col -")
+        document_stats_label.config(text="0 chars | 0 words")
+
 def fileExit():
     # on exit, if unsaved changes prompts user to save, not save or cancel w/ messagebox
     if prompt_unsaved_changes():
@@ -104,8 +130,10 @@ def openFile():
         return
 
     # sets the context window to default to .txt or an option for all files
+    initial_directory = os.path.dirname(currentFilePath) if currentFilePath else ROOT_DIR
     filepath = filedialog.askopenfilename(
         title="Open file...",
+        initialdir=initial_directory,
         filetypes=[("Text Files","*.txt"),
                    ("All Files","*.*")])
 
@@ -146,8 +174,10 @@ def saveFile():
 
 def saveAsFile():
     global currentFilePath, unsavedChanges
+    initial_directory = os.path.dirname(currentFilePath) if currentFilePath else ROOT_DIR
     filepath = filedialog.asksaveasfilename(
         defaultextension=".txt",
+        initialdir=initial_directory,
         filetypes=[
             ("Text File", "*.txt"),
             ("Python File", "*.py"),
@@ -432,7 +462,7 @@ def helpView():
 def about():
     # create a child window (top level) and disable all buttons at the top
     aboutWindow = Toplevel(mainWindow)
-    aboutWindow.title("About")
+    aboutWindow.title(f"About {APP_NAME}")
     aboutWindow.overrideredirect(False) # make true to remove min/max/close buttons
 
     # Center the window on screen
@@ -447,14 +477,14 @@ def about():
     aboutWindow.geometry(f"{window_width}x{window_height}+{x}+{y}")
 
     # bulk of about window text
-    aboutPynote = """JON - Just another notepad is a project notepad app coded entirely in Python utilizing TKinter to get back into programming with python. 
+    aboutPynote = f"""{APP_NAME} is a project notepad app coded entirely in Python utilizing TKinter to get back into programming with python. 
     \nThank you to Bro Code and chatGPT (lol) for helping me practice my programming skills and giving me the resources and tips to help build this tool!
     \n
     \n\n Created by Jake Evans"""
 
     # add content to actual window
 
-    aboutWindowLabel = Label(aboutWindow,text=f"JON - Just another notepad version {version}", font=("Arial",14,"bold"))
+    aboutWindowLabel = Label(aboutWindow,text=f"{APP_NAME} version {version}", font=("Arial",14,"bold"))
     aboutWindowLabel.pack(side=TOP,pady=10)
     aboutWindowText = Label(aboutWindow,text=aboutPynote,font=("Arial",10),wraplength=380, justify="center")
     aboutWindowText.pack(side=TOP)
@@ -467,135 +497,138 @@ def about():
                            command=aboutWindow.destroy)
     awButtonClose.place(relx=0.95, rely=0.95, anchor="se")
 
-# window create
-mainWindow = Tk()
-mainWindow.geometry("600x400")
-version = updateVersion()
-# mainWindow.title("PyNotes Version %s" % version) - legacy v0.3b22
-mainWindow.title("Untitled - JON - Just another notepad")
+def initialize_window():
+    global mainWindow, currentFont, wordWrapVar, rcMenu, menubar, fileMenu, editMenu, formatMenu, helpMenu
+    global xScrollbar, yScrollbar, mainTextField, status_frame, cursor_label, document_stats_label, version
 
-#########DEFAULT VALUES FOR WINDOW################
-currentFont = font.Font(family="consolas", size=13)
-if fileCheck("pynote_icon.ico"):
-    print("icon exists")
-    mainWindow.iconbitmap("pynote_icon.ico")
-else:
-    print("No pynote_icon.ico file found.")
-    pass
-wordWrapVar = BooleanVar(value=True)
-##################################################
+    mainWindow = Tk()
+    mainWindow.geometry(DEFAULT_WINDOW_SIZE)
+    version = updateVersion()
+    mainWindow.title(f"{DEFAULT_TITLE} - {APP_NAME}")
 
-# buttons for no context menubar notepad -- legacy code (v0.1 build 85)
-# fileOpenButton = Button(mainWindow, text="Open File", command=openFile)
-# fileOpenButton.pack(anchor="nw")
-# fileSaveButton = Button(mainWindow, text="Save", command=saveFile)
-# fileSaveButton.place(x=62,y=0)
-# fileSaveAsButton = Button(mainWindow, text="Save As...", command=saveAsFile)
-# fileSaveAsButton.place(x=98,y=0)
+    #########DEFAULT VALUES FOR WINDOW################
+    currentFont = font.Font(family="consolas", size=13)
+    if fileCheck("pynote_icon.ico"):
+        icon_path = resource_path("pynote_icon.ico")
+        try:
+            mainWindow.iconbitmap(icon_path)
+        except Exception:
+            # icon bitmap fails silently on platforms that do not support .ico
+            pass
+    wordWrapVar = BooleanVar(value=True)
+    ##################################################
 
-# Right Click (rc) context menu generation
-rcMenu = Menu(mainWindow, tearoff=0)
-rcMenu.add_command(label="Undo", command=undoEdit)
-rcMenu.add_separator()
-rcMenu.add_command(label="Cut", command=cutEdit)
-rcMenu.add_command(label="Copy", command=copyEdit)
-rcMenu.add_command(label="Paste", command=pasteEdit)
-rcMenu.add_separator()
-rcMenu.add_command(label="Select All", command=lambda: mainTextField.tag_add(SEL, "1.0", END))
-rcMenu.bind("<Button-3>", rcPopup)
+    # Right Click (rc) context menu generation
+    rcMenu = Menu(mainWindow, tearoff=0)
+    rcMenu.add_command(label="Undo", command=undoEdit)
+    rcMenu.add_separator()
+    rcMenu.add_command(label="Cut", command=cutEdit)
+    rcMenu.add_command(label="Copy", command=copyEdit)
+    rcMenu.add_command(label="Paste", command=pasteEdit)
+    rcMenu.add_separator()
+    rcMenu.add_command(label="Select All", command=lambda: mainTextField.tag_add(SEL, "1.0", END))
+    rcMenu.bind("<Button-3>", rcPopup)
 
-# menubar generation
-menubar = Menu(mainWindow)
-mainWindow.config(menu=menubar)
+    # menubar generation
+    menubar = Menu(mainWindow)
+    mainWindow.config(menu=menubar)
 
-# file context menu in menu bar
-fileMenu = Menu(menubar,tearoff=False)
-menubar.add_cascade(label="File", menu=fileMenu)
-fileMenu.add_command(label="New", command=newFile)
-fileMenu.add_command(label="Open", command=openFile)
-fileMenu.add_command(label="Save", command=saveFile)
-fileMenu.add_command(label="Save As...", command=saveAsFile)
-fileMenu.add_separator()
-fileMenu.add_command(label="Exit", command=fileExit)
+    # file context menu in menu bar
+    fileMenu = Menu(menubar,tearoff=False)
+    menubar.add_cascade(label="File", menu=fileMenu)
+    fileMenu.add_command(label="New", command=newFile)
+    fileMenu.add_command(label="Open", command=openFile)
+    fileMenu.add_command(label="Save", command=saveFile)
+    fileMenu.add_command(label="Save As...", command=saveAsFile)
+    fileMenu.add_separator()
+    fileMenu.add_command(label="Exit", command=fileExit)
 
-# edit context menu in menu bar
-editMenu = Menu(menubar,tearoff=False)
-menubar.add_cascade(label="Edit", menu=editMenu)
-editMenu.add_command(label="Undo", accelerator="Ctrl+Z", command=undoEdit)
-editMenu.add_separator()
-editMenu.add_command(label="Cut", accelerator="Ctrl+X", command=cutEdit)
-editMenu.add_command(label="Copy", accelerator="Ctrl+C", command=copyEdit)
-editMenu.add_command(label="Paste", accelerator="Ctrl+V", command=pasteEdit)
-editMenu.add_separator()
-editMenu.add_command(label="Find / Replace", accelerator="Ctrl+F", command=findAndReplace)
-editMenu.add_command(label="Select All", accelerator="Ctrl+A", command=lambda: mainTextField.tag_add(SEL, "1.0", END))
+    # edit context menu in menu bar
+    editMenu = Menu(menubar,tearoff=False)
+    menubar.add_cascade(label="Edit", menu=editMenu)
+    editMenu.add_command(label="Undo", accelerator="Ctrl+Z", command=undoEdit)
+    editMenu.add_separator()
+    editMenu.add_command(label="Cut", accelerator="Ctrl+X", command=cutEdit)
+    editMenu.add_command(label="Copy", accelerator="Ctrl+C", command=copyEdit)
+    editMenu.add_command(label="Paste", accelerator="Ctrl+V", command=pasteEdit)
+    editMenu.add_separator()
+    editMenu.add_command(label="Find / Replace", accelerator="Ctrl+F", command=findAndReplace)
+    editMenu.add_command(label="Select All", accelerator="Ctrl+A", command=lambda: mainTextField.tag_add(SEL, "1.0", END))
 
-# format context menu in menu bar
-formatMenu = Menu(menubar,tearoff=False)
-menubar.add_cascade(label="Format", menu=formatMenu)
-formatMenu.add_checkbutton(label="Word Wrap", variable=wordWrapVar, command=toggleWordWrap)
-formatMenu.add_command(label="Font...", command=fontFormat)
+    # format context menu in menu bar
+    formatMenu = Menu(menubar,tearoff=False)
+    menubar.add_cascade(label="Format", menu=formatMenu)
+    formatMenu.add_checkbutton(label="Word Wrap", variable=wordWrapVar, command=toggleWordWrap)
+    formatMenu.add_command(label="Font...", command=fontFormat)
 
-# help context menu in menu bar
-helpMenu = Menu(menubar,tearoff=False)
-menubar.add_cascade(label="Help", menu=helpMenu)
-helpMenu.add_command(label="View Help", command=helpView)
-helpMenu.add_separator()
-helpMenu.add_command(label="About JON", command=about)
+    # help context menu in menu bar
+    helpMenu = Menu(menubar,tearoff=False)
+    menubar.add_cascade(label="Help", menu=helpMenu)
+    helpMenu.add_command(label="View Help", command=helpView)
+    helpMenu.add_separator()
+    helpMenu.add_command(label=f"About {APP_NAME}", command=about)
 
-# text window scrollbar
-xScrollbar = Scrollbar(mainWindow, orient="horizontal")
-xScrollbar.pack(side="bottom", fill="x")
+    # text window scrollbar
+    xScrollbar = Scrollbar(mainWindow, orient="horizontal")
+    xScrollbar.pack(side="bottom", fill="x")
 
-yScrollbar = Scrollbar(mainWindow, orient="vertical")
-yScrollbar.pack(side="right", fill="y")
+    yScrollbar = Scrollbar(mainWindow, orient="vertical")
+    yScrollbar.pack(side="right", fill="y")
+
+    # text window
+    mainTextField = Text(mainWindow, font=currentFont, wrap="word", undo=True, yscrollcommand=yScrollbar.set, xscrollcommand=xScrollbar.set)
+    mainTextField.pack(side="top", expand=True, fill="both")
+    mainTextField.bind("<<Modified>>", on_edit)
+    mainTextField.bind("<Control-z>", lambda e: undoEdit())
+    mainTextField.bind("<Control-f>", lambda e: (findAndReplace(), "break"))
+    mainTextField.bind("<Control-a>", lambda e: (mainTextField.tag_add(SEL, "1.0", END), "break"))
+    mainTextField.bind("<Button-3>", rcPopup)
+    mainTextField.tag_config(SEARCH_HIGHLIGHT_TAG, background="yellow")
+    mainWindow.protocol("WM_DELETE_WINDOW", fileExit)
+
+    # Status bar frame
+    status_frame = Frame(mainWindow, relief="sunken", bd=1)
+    status_frame.pack(side="bottom", fill="x")
+
+    # Label to hold line/column display
+    cursor_label = Label(status_frame, text="Ln 1, Col 1", anchor="e")
+    cursor_label.pack(side="right", padx=5)
+
+    document_stats_label = Label(status_frame, text="0 chars | 0 words", anchor="w")
+    document_stats_label.pack(side="left", padx=5)
+
+    # Bind typing and mouse release to update function
+    mainTextField.bind("<KeyRelease>", update_cursor_position)
+    mainTextField.bind("<ButtonRelease>", update_cursor_position)
+    mainTextField.bind("<MouseWheel>", update_cursor_position)
+
+    xScrollbar.config(command=mainTextField.xview)
+    yScrollbar.config(command=mainTextField.yview)
 
 
+def open_startup_file():
+    if len(sys.argv) < 2:
+        return
 
-# text window
-mainTextField = Text(mainWindow, font=currentFont, wrap="word", undo=True, yscrollcommand=yScrollbar.set, xscrollcommand=xScrollbar.set)
-mainTextField.pack(side="top", expand=True, fill="both")
-mainTextField.bind("<<Modified>>", on_edit)
-mainTextField.bind("<Control-z>", lambda e: undoEdit())
-mainTextField.bind("<Control-f>", lambda e: (findAndReplace(), "break"))
-mainTextField.bind("<Control-a>", lambda e: (mainTextField.tag_add(SEL, "1.0", END), "break"))
-mainTextField.bind("<Button-3>", rcPopup)
-mainTextField.tag_config(SEARCH_HIGHLIGHT_TAG, background="yellow")
-mainWindow.protocol("WM_DELETE_WINDOW", fileExit)
+    candidate = os.path.abspath(sys.argv[1])
+    if not os.path.isfile(candidate):
+        messagebox.showerror("Open Error", f"Startup file not found:\n{candidate}")
+        return
 
-# Status bar frame
-status_frame = Frame(mainWindow, relief="sunken", bd=1)
-status_frame.pack(side="bottom", fill="x")
-
-# Label to hold line/column display
-cursor_label = Label(status_frame, text="Ln 1, Col 1", anchor="e")
-cursor_label.pack(side="right", padx=5)
-
-document_stats_label = Label(status_frame, text="0 chars | 0 words", anchor="w")
-document_stats_label.pack(side="left", padx=5)
-
-# Function to update cursor position
-def update_cursor_position(event=None):
     try:
-        index = mainTextField.index("insert")
-        line, col = map(int, index.split("."))
-        cursor_label.config(text=f"Ln {line}, Col {col + 1}")
-        text_content = mainTextField.get("1.0", "end-1c")
-        char_count = len(text_content)
-        word_count = len(text_content.split()) if text_content.strip() else 0
-        document_stats_label.config(text=f"{char_count} chars | {word_count} words")
-    except:
-        cursor_label.config(text="Ln -, Col -")
-        document_stats_label.config(text="0 chars | 0 words")
-
-# Bind typing and mouse release to update function
-mainTextField.bind("<KeyRelease>", update_cursor_position)
-mainTextField.bind("<ButtonRelease>", update_cursor_position)
-mainTextField.bind("<MouseWheel>", update_cursor_position)
+        with open(candidate, "r", encoding="utf-8") as openFileHandler:
+            openFileData = openFileHandler.read()
+            load_content(openFileData, candidate)
+    except Exception as e:
+        messagebox.showerror("Open Error", f"Could not open startup file:\n{e}")
 
 
-# window loop
-xScrollbar.config(command=mainTextField.xview)
-yScrollbar.config(command=mainTextField.yview)
-update_cursor_position()
-mainWindow.mainloop()
+def main():
+    initialize_window()
+    open_startup_file()
+    update_cursor_position()
+    mainWindow.mainloop()
+
+
+if __name__ == "__main__":
+    main()
